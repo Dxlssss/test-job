@@ -1,0 +1,58 @@
+- name: Deploy test job
+  hosts: test_serv
+  become: true
+  tasks:
+    - name: installing the necessary packages for Docker
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker-ce
+        state: present
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.29.0/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+      become: true
+
+    - name: Transfer docker-compose.yml
+      copy:
+        src: ./docker-compose.yml
+        dest: /opt/docker-compose/docker-compose.yml
+
+    - name: Transfer nginx configuration template
+      template:
+        src: ./nginx.conf.j2
+        dest: /opt/nginx/nginx.conf
+      notify:
+        - Restart Nginx
+
+    - name: Start Docker containers
+      command: docker-compose up -d
+      args:
+        chdir: /opt/docker-compose/
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
